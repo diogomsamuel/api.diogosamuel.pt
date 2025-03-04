@@ -13,7 +13,7 @@ async function handler(req, res) {
   // 🔹 Substitui o valor do cookie antes de apagá-lo para garantir a remoção
   res.setHeader(
     "Set-Cookie",
-    "token=; Path=/; HttpOnly; Secure; Domain=.nstech.pt; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+    "token=; Path=/; HttpOnly; Secure; Domain=.diogosamuel.pt; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
   );
 
   console.log("✅ Logout efetuado com sucesso: Cookie removido");

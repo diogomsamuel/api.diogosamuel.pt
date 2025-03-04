@@ -47,7 +47,7 @@ async function handler(req, res) {
     // Adiciona o token ao cookie de forma segura
     res.setHeader(
       "Set-Cookie",
-      `token=${token}; Path=/; HttpOnly; Secure; SameSite=None; Domain=.nstech.pt; Max-Age=7200`
+      `token=${token}; Path=/; HttpOnly; Secure; SameSite=None; Domain=.diogosamuel.pt; Max-Age=7200`
     );
     
     
