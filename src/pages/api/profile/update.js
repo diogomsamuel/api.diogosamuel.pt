@@ -1,4 +1,4 @@
-import pool from "../../../lib/db";
+import { pool } from '../../../db/db';
 import { allowCors } from "../../../lib/cors";
 import { withAuth, validateUserData } from "../../../lib/auth";
 

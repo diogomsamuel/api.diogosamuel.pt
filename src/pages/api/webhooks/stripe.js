@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { buffer } from 'micro';
-import pool from "../../../lib/db";
+import { pool } from '../../../db/db';
 
 // Desativar o parser de corpo padrão do Next.js para webhooks
 export const config = {

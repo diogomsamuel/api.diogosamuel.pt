@@ -1,4 +1,4 @@
-import pool from "../../lib/db";
+import { pool } from '../../db/db';
 import { allowCors } from "../../lib/cors";
 
 // Valida se o metodo que está a ser chamado é o correto : "GET"
