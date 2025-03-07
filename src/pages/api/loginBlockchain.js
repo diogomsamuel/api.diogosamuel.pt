@@ -35,7 +35,17 @@ async function handler(req, res) {
     }
 
     // Cria um token de autenticação JWT com a chave secreta
-    const token = jwt.sign({ walletAddress }, process.env.JWT_SECRET, { expiresIn: "2h" });
+    const token = jwt.sign(
+      { 
+        id: walletAddress,
+        walletAddress, 
+        isAdmin: true,
+        isSuperAdmin: true, // O login com blockchain é sempre super admin
+        authMethod: 'blockchain'
+      }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: "2h" }
+    );
 
     // Define corretamente o Cookie para produção
     res.setHeader("Set-Cookie", `token=${token}; ${cookieOptions}; Max-Age=7200`);

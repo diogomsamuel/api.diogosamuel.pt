@@ -114,7 +114,9 @@ const authConfig = {
 const corsConfig = {
   allowedOrigins: [
     // Origens permitidas em produção
-    ...(validateEnv('CORS_ALLOWED_ORIGINS_REMOTE', '', false) || '').split(',').filter(Boolean).map(o => o.trim()),
+    ...(validateEnv('CORS_ALLOWED_ORIGINS_REMOTE', '', false) || '').split(',')
+      .filter(Boolean)
+      .map(o => o.trim()),
     // Origens permitidas em desenvolvimento
     ...(process.env.NODE_ENV === 'development' 
       ? [
@@ -128,9 +130,16 @@ const corsConfig = {
       : []
     )
   ],
-  allowAnyOriginInDev: validateEnv('CORS_ALLOW_ANY_DEV', 'false', false) === 'true',
+  allowAnyOriginInDev: validateEnv('CORS_ALLOW_ANY_DEV', 'true', false) === 'true',
   allowPostman: validateEnv('POSTMAN_ALLOWED', 'false', false) === 'true',
 };
+
+// Log para debugging
+console.log('==== CONFIGURAÇÃO CORS ====');
+console.log('Origens permitidas:', corsConfig.allowedOrigins);
+console.log('Permitir qualquer origem em DEV:', corsConfig.allowAnyOriginInDev);
+console.log('Permitir Postman:', corsConfig.allowPostman);
+console.log('============================');
 
 // URLs da aplicação
 const appUrls = {

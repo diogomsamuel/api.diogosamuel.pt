@@ -13,6 +13,12 @@ export function allowCors(handler) {
     const method = req.method || "UNKNOWN";
     const path = req.url || "UNKNOWN";
 
+    // Log diagnóstico para depuração
+    console.log(`[CORS] 🔍 Recebida requisição: ${method} ${path}`);
+    console.log(`[CORS] 🔍 Origem: "${origin}"`);
+    console.log(`[CORS] 🔍 Origens permitidas:`, allowedOrigins);
+    console.log(`[CORS] 🔍 Em modo desenvolvimento:`, isDevelopment);
+
     // Verificar se é uma requisição do Postman
     const isPostmanRequest = userAgent.includes("Postman");
     
