@@ -23,9 +23,18 @@ export function withAuth(handler) {
       let token = null;
       
       try {
-        // Garante que o header "cookie" existe antes de tentar analisá-lo
+        // Primeiro, tenta encontrar o token nos cookies
         const cookies = req.headers.cookie ? parse(req.headers.cookie) : {};
         token = cookies.token || null;
+        
+        // Se não encontrar o token nos cookies, tenta encontrar no cabeçalho Authorization
+        if (!token && req.headers.authorization) {
+          const authHeader = req.headers.authorization;
+          if (authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7); // Remove 'Bearer ' do início
+            console.log("✅ Token extraído do cabeçalho Authorization");
+          }
+        }
       } catch (cookieError) {
         console.error("❌ Erro ao analisar cookies:", cookieError.message);
         return res.status(401).json({ error: "Erro ao processar cookies de autenticação" });
@@ -33,7 +42,7 @@ export function withAuth(handler) {
 
       // Verifica se o token está presente
       if (!token) {
-        console.warn("⚠ Nenhum token encontrado nos cookies.");
+        console.warn("⚠ Nenhum token encontrado nos cookies ou cabeçalhos.");
         return res.status(401).json({ error: "Não autenticado" });
       }
 

@@ -7,10 +7,27 @@ async function handler(req, res) {
     return res.status(405).json({ error: "Método não permitido" });
   }
 
-  // Verificar se o usuário é administrador
-  if (!req.user || req.user.walletAddress !== process.env.ADMIN_WALLET) {
-    return res.status(403).json({ error: "Acesso não autorizado" });
+  // Log para diagnóstico
+  console.log('[Admin Stats] Usuário da requisição:', req.user);
+  
+  // Verificação de segurança mais compreensiva
+  if (!req.user) {
+    console.error('[Admin Stats] Requisição sem usuário autenticado');
+    return res.status(401).json({ error: "Usuário não autenticado" });
   }
+  
+  // Verificar se o usuário é administrador pela propriedade isAdmin
+  if (!req.user.isAdmin) {
+    console.error('[Admin Stats] Usuário não é admin:', req.user.id);
+    return res.status(403).json({ error: "Acesso não autorizado - Usuário não é admin" });
+  }
+  
+  // Super Admin tem acesso completo (wallet verificada)
+  const isSuperAdmin = req.user.isSuperAdmin || 
+                      (req.user.walletAddress && 
+                       req.user.walletAddress.toLowerCase() === process.env.ADMIN_WALLET.toLowerCase());
+
+  console.log('[Admin Stats] É super admin:', isSuperAdmin);
 
   let connection;
   try {
