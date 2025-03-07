@@ -18,8 +18,8 @@ async function handler(req, res) {
   let connection;
   try {
     connection = await pool.getConnection();
-    // Valida se o utilizador existe
-    const [rows] = await connection.execute("SELECT id, username, password FROM users WHERE username = ?", [username]);
+    // Valida se o utilizador existe por username ou email
+    const [rows] = await connection.execute("SELECT id, username, password FROM users WHERE username = ? OR email = ?", [username, username]);
 
     // Se o utilizador não existir, retorna um erro
     if (rows.length === 0) {
@@ -49,7 +49,6 @@ async function handler(req, res) {
       "Set-Cookie",
       `token=${token}; Path=/; HttpOnly; Secure; SameSite=None; Domain=.diogosamuel.pt; Max-Age=7200`
     );
-    
     
     // Liberta a conexão
     connection.release();

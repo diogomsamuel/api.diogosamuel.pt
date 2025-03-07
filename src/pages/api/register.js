@@ -1,5 +1,6 @@
 import { pool } from '../../db/db';
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { allowCors } from "../../lib/cors";
 import { validateUserData } from "../../lib/auth";
 
@@ -17,7 +18,12 @@ async function handler(req, res) {
     first_name, 
     last_name, 
     phone,
-    birth_date 
+    birth_date,
+    height,
+    initial_weight,
+    fitness_level,
+    fitness_goals,
+    health_conditions
   } = req.body;
 
   // Validação básica dos campos obrigatórios
@@ -81,19 +87,49 @@ async function handler(req, res) {
       [userId]
     );
 
+    // Salva as informações físicas se fornecidas
+    if (height || initial_weight) {
+      await connection.execute(
+        "INSERT INTO body_measurements (user_id, height, weight, measured_at) VALUES (?, ?, ?, NOW())",
+        [userId, height || null, initial_weight || null]
+      );
+    }
+
+    // Salva os objetivos de fitness se fornecidos
+    if (fitness_goals) {
+      await connection.execute(
+        "INSERT INTO user_goals (user_id, description, created_at) VALUES (?, ?, NOW())",
+        [userId, fitness_goals]
+      );
+    }
+
+    // Gera um token JWT após o registro
+    const token = jwt.sign(
+      { id: userId, username: username }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: "2h" }
+    );
+
+    // Adiciona o token ao cookie de forma segura
+    res.setHeader(
+      "Set-Cookie",
+      `token=${token}; Path=/; HttpOnly; Secure; SameSite=None; Domain=.diogosamuel.pt; Max-Age=7200`
+    );
+
     // Libera a conexão
     connection.release();
     
-    console.log(`✅ Novo usuário registrado: ID=${userId}, Username=${username}`);
+    console.log(`Novo usuário registrado: ID=${userId}, Username=${username}`);
     
     return res.status(201).json({ 
       success: true, 
       message: "Usuário registrado com sucesso",
-      userId
+      userId,
+      token
     });
   } catch (error) {
     if (connection) connection.release();
-    console.error("❌ Erro ao registrar usuário:", error);
+    console.error("Erro ao registrar usuário:", error);
     return res.status(500).json({ error: "Erro ao registrar usuário" });
   }
 }
