@@ -112,26 +112,23 @@ const authConfig = {
 
 // Configurações de CORS
 const corsConfig = {
-  allowedOrigins: [
-    // Origens permitidas em produção
-    ...(validateEnv('CORS_ALLOWED_ORIGINS_REMOTE', '', false) || '').split(',')
-      .filter(Boolean)
-      .map(o => o.trim()),
-    // Origens permitidas em desenvolvimento
-    ...(process.env.NODE_ENV === 'development' 
-      ? [
-          'http://localhost:3000',
-          'http://localhost:3001',
-          'http://localhost:3002',
-          'http://127.0.0.1:3000',
-          'http://127.0.0.1:3001',
-          'http://127.0.0.1:3002'
-        ]
-      : []
-    )
-  ],
-  allowAnyOriginInDev: validateEnv('CORS_ALLOW_ANY_DEV', 'true', false) === 'true',
-  allowPostman: validateEnv('POSTMAN_ALLOWED', 'false', false) === 'true',
+  allowedOrigins: (process.env.ALLOWED_ORIGINS ? 
+    process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : 
+    [
+      // Frontend principal
+      'https://www.diogosamuel.pt',
+      'https://diogosamuel.pt',
+      
+      // Admin dashboard
+      'https://admin.diogosamuel.pt',
+      
+      // URLs de desenvolvimento local
+      'http://localhost:3000',
+      'http://localhost:3002',
+    ]
+  ),
+  allowAnyOriginInDev: process.env.ALLOW_ANY_ORIGIN_IN_DEV === 'true' || false,
+  allowPostman: process.env.ALLOW_POSTMAN === 'true' || true,
 };
 
 // Log para debugging
