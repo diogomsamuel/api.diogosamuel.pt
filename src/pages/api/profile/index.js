@@ -110,8 +110,8 @@ async function handler(req, res) {
             tp.name as plan_name,
             tp.description as plan_description,
             pv.id as variant_id,
-            pv.name as variant_name,
-            pv.duration as variant_duration
+            pv.training_frequency,
+            pv.experience_level
           FROM purchases p
           JOIN training_plans tp ON p.plan_id = tp.id
           JOIN plan_variants pv ON p.variant_id = pv.id
@@ -119,7 +119,10 @@ async function handler(req, res) {
           ORDER BY p.purchase_date DESC`,
           [userId]
         );
-        purchasedPlans = purchasedPlansResult;
+        purchasedPlans = purchasedPlansResult.map(plan => ({
+          ...plan,
+          variant_name: `${plan.training_frequency}x por semana - Nível ${plan.experience_level}`
+        }));
       } catch (plansError) {
         console.warn("Aviso: Erro ao buscar planos adquiridos:", plansError.message);
         // Continuar com purchasedPlans vazio

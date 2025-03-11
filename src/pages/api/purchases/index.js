@@ -52,7 +52,8 @@ async function handler(req, res) {
               tp.name as plan_name,
               tp.short_description as plan_description,
               pv.id as variant_id,
-              pv.duration
+              pv.training_frequency,
+              pv.experience_level
             FROM purchases p
             JOIN training_plans tp ON p.plan_id = tp.id
             JOIN plan_variants pv ON p.variant_id = pv.id
@@ -74,9 +75,9 @@ async function handler(req, res) {
           // Executar a query
           const [purchases] = await connection.execute(query, queryParams);
           
-          // Adicionar um título genérico para a variante já que não temos a coluna name
+          // Adicionar um título genérico para a variante baseado na frequência e nível
           for (const purchase of purchases) {
-            purchase.variant_name = `Plano de ${purchase.duration} dias`;
+            purchase.variant_name = `${purchase.training_frequency}x por semana - Nível ${purchase.experience_level}`;
           }
           
           // Obter o total de compras para paginação
