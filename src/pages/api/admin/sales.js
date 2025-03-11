@@ -27,7 +27,8 @@ async function handler(req, res) {
           p.stripe_session_id, p.stripe_payment_intent_id,
           p.is_lifetime_access, p.access_granted,
           u.username as user, u.email as user_email,
-          tp.name as plan, pv.name as variant
+          tp.name as plan, pv.id as variant_id,
+          pv.training_frequency, pv.experience_level
         FROM purchases p
         JOIN users u ON p.user_id = u.id
         JOIN training_plans tp ON p.plan_id = tp.id
@@ -58,10 +59,14 @@ async function handler(req, res) {
         queryParams.push(endDate);
       }
 
-      query += " ORDER BY p.purchase_date DESC LIMIT ? OFFSET ?";
-      queryParams.push(limit, offset);
+      query += ` ORDER BY p.purchase_date DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
 
       const [sales] = await connection.execute(query, queryParams);
+
+      // Add a computed variant name based on training_frequency and experience_level
+      for (const sale of sales) {
+        sale.variant = `${sale.training_frequency}x/semana - Nível ${sale.experience_level}`;
+      }
 
       // Contar total de vendas para paginação
       let countQuery = `

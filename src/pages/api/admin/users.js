@@ -38,8 +38,7 @@ async function handler(req, res) {
         queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
       }
 
-      query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-      queryParams.push(limit, offset);
+      query += ` ORDER BY created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
 
       const [users] = await connection.execute(query, queryParams);
 

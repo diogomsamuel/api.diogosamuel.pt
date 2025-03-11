@@ -41,8 +41,7 @@ async function handler(req, res) {
         queryParams.push(searchTerm, searchTerm, searchTerm);
       }
 
-      query += ` GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?`;
-      queryParams.push(limit, offset);
+      query += ` GROUP BY p.id ORDER BY p.created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
 
       const [plans] = await connection.execute(query, queryParams);
 
