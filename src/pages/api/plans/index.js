@@ -65,9 +65,14 @@ async function handler(req, res) {
       query += ` ORDER BY p.name ASC`;
     }
     
-    // Adicionar paginação
+    // Adicionar paginação - corrigindo tipos para número
     query += ` LIMIT ? OFFSET ?`;
-    queryParams.push(limit, offset);
+    
+    // Garantir que limit e offset são números
+    queryParams.push(Number(limit), Number(offset));
+    
+    console.log('Query:', query);
+    console.log('Params:', queryParams);
     
     // Executar a query
     const [plans] = await connection.execute(query, queryParams);
@@ -180,6 +185,7 @@ async function handler(req, res) {
     connection.release();
     
     return res.status(200).json({
+      success: true,
       plans,
       categories,
       pagination: {
@@ -192,7 +198,11 @@ async function handler(req, res) {
   } catch (error) {
     if (connection) connection.release();
     console.error("❌ Erro ao buscar planos:", error);
-    return res.status(500).json({ error: "Erro ao buscar planos de treinamento" });
+    return res.status(500).json({ 
+      success: false,
+      error: "Erro ao buscar planos de treinamento",
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 

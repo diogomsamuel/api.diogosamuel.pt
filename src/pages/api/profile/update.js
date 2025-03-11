@@ -3,8 +3,13 @@ import { allowCors } from "../../../lib/cors";
 import { withAuth, validateUserData } from "../../../lib/auth";
 
 async function handler(req, res) {
-  if (req.method !== "PUT") {
-    return res.status(405).json({ error: "Método não permitido" });
+  // Aceitar tanto PUT quanto POST para atualização de perfil
+  if (req.method !== "PUT" && req.method !== "POST") {
+    return res.status(405).json({ 
+      success: false,
+      error: "Método não permitido", 
+      message: "Este endpoint aceita apenas os métodos PUT ou POST" 
+    });
   }
 
   const userId = req.user.id;
@@ -41,7 +46,11 @@ async function handler(req, res) {
   if (email) {
     const { isValid, errors } = validateUserData({ email }, []);
     if (!isValid) {
-      return res.status(400).json({ error: "Dados inválidos", details: errors });
+      return res.status(400).json({ 
+        success: false,
+        error: "Dados inválidos", 
+        details: errors 
+      });
     }
   }
 
@@ -250,31 +259,30 @@ async function handler(req, res) {
       }
     }
 
-    // Commit da transação
+    // Confirmar a transação
     await connection.commit();
     connection.release();
     
-    console.log(`✅ Perfil atualizado para o usuário ID=${userId}`);
-    
-    return res.status(200).json({ 
-      success: true, 
+    // Retornar resposta padronizada com sucesso
+    return res.status(200).json({
+      success: true,
       message: "Perfil atualizado com sucesso"
     });
-    
   } catch (error) {
+    // Reverter transação em caso de erro
     if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error("Erro ao realizar rollback:", rollbackError);
-      }
+      await connection.rollback();
       connection.release();
     }
     
     console.error("❌ Erro ao atualizar perfil:", error);
-    return res.status(500).json({ error: "Erro ao atualizar perfil" });
+    return res.status(500).json({
+      success: false,
+      error: "Erro ao atualizar perfil",
+      message: process.env.NODE_ENV === 'development' ? error.message : "Ocorreu um erro ao processar sua solicitação"
+    });
   }
 }
 
-// Aplicar middleware de autenticação e CORS
+// Aplicar middleware de autenticação e CORS com suporte a OPTIONS para preflight
 export default allowCors(withAuth(handler)); 
