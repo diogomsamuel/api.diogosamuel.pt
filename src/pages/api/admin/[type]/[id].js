@@ -1,6 +1,6 @@
 import { authMiddleware } from '../../../../middleware/auth';
 import { requestLogger } from '../../../../middleware/requestLogger';
-import pool from '../../../../db/db';
+import pool from '../../../../lib/db';
 import { allowCors } from '../../../../lib/cors';
 
 const handler = async (req, res) => {

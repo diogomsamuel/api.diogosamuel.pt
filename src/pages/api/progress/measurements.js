@@ -1,6 +1,6 @@
 import { withAuth } from '../../../middleware/auth';
 import { allowCors } from '../../../lib/cors';
-import { pool } from '../../../db/db';
+import pool from '../../../lib/db';
 import { validateMeasurementType } from '../../../lib/validators';
 
 async function handler(req, res) {

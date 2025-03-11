@@ -1,4 +1,4 @@
-import { pool } from '../../../db/db';
+import pool from '../../../lib/db';
 import { allowCors } from "../../../lib/cors";
 import { withAuth } from "../../../lib/auth";
 
@@ -85,7 +85,7 @@ async function handler(req, res) {
       // Buscar fotos de progresso
       try {
         const [progressPhotosResult] = await connection.execute(
-          `SELECT id, photo_path, photo_date, photo_type, notes, is_private, created_at
+          `SELECT id, photo_url, photo_date, photo_type, notes, is_private, created_at
           FROM progress_photos
           WHERE user_id = ?
           ORDER BY photo_date DESC

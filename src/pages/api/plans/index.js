@@ -1,4 +1,4 @@
-import { pool } from '../../../db/db';
+import pool from '../../../lib/db';
 import { allowCors } from "../../../lib/cors";
 
 async function handler(req, res) {
@@ -65,11 +65,8 @@ async function handler(req, res) {
       query += ` ORDER BY p.name ASC`;
     }
     
-    // Adicionar paginação - corrigindo tipos para número
-    query += ` LIMIT ? OFFSET ?`;
-    
-    // Garantir que limit e offset são números
-    queryParams.push(Number(limit), Number(offset));
+    // Adicionar paginação diretamente no SQL ao invés de usar parâmetros
+    query += ` LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
     
     console.log('Query:', query);
     console.log('Params:', queryParams);

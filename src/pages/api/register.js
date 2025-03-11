@@ -1,4 +1,4 @@
-import { pool } from '../../db/db';
+import pool from '../../lib/db';
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { allowCors } from "../../lib/cors";

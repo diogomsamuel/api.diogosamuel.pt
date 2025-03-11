@@ -1,6 +1,6 @@
 import { authMiddleware } from '../../../../middleware/auth';
 import { requestLogger } from '../../../../middleware/requestLogger';
-import pool from '../../../../db/db';
+import pool from '../../../../lib/db';
 import { Parser } from 'json2csv';
 import { allowCors } from '../../../../lib/cors';
 

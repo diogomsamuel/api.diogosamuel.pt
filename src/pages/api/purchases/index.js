@@ -1,4 +1,4 @@
-import { pool } from '../../../db/db';
+import pool from '../../../lib/db';
 import { allowCors } from "../../../lib/cors";
 import { withAuth } from "../../../lib/auth";
 
@@ -69,8 +69,7 @@ async function handler(req, res) {
           }
           
           // Adicionar ordenação e paginação
-          query += ` ORDER BY p.purchase_date DESC LIMIT ? OFFSET ?`;
-          queryParams.push(Number(limit), Number(offset));
+          query += ` ORDER BY p.purchase_date DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
           
           // Executar a query
           const [purchases] = await connection.execute(query, queryParams);

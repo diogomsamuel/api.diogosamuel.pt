@@ -1,4 +1,4 @@
-import { pool } from '../../../db/db';
+import pool from '../../../lib/db';
 import { allowCors } from "../../../lib/cors";
 
 async function handler(req, res) {
