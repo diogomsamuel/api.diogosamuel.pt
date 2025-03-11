@@ -1,4 +1,4 @@
-import { connectToDatabase } from "../../lib/db";
+import { connectToDatabase, checkDatabaseHealth } from "../../lib/db";
 import { allowCors } from "../../lib/cors";
 
 /**
@@ -17,32 +17,21 @@ async function handler(req, res) {
   console.log("[DB STATUS] Verificando status do banco de dados");
   
   try {
-    // Tentar conectar ao banco de dados
-    const startTime = Date.now();
-    const pool = await connectToDatabase();
+    // Verificar saúde do banco de dados
+    const dbHealth = await checkDatabaseHealth();
     
-    // Executar uma consulta simples para testar a conexão
-    const [result] = await pool.query("SELECT 1 as value");
-    const endTime = Date.now();
-    
-    // Calcular tempo de resposta
-    const responseTime = endTime - startTime;
-    
-    // Verificar se a consulta retornou o resultado esperado
-    const isConnected = result && result[0]?.value === 1;
-    
-    if (isConnected) {
-      console.log(`[DB STATUS] Banco de dados online (${responseTime}ms)`);
+    if (dbHealth.connected) {
+      console.log(`[DB STATUS] Banco de dados online`);
       return res.status(200).json({
         status: "online",
-        message: "Conexão com o banco de dados estabelecida com sucesso",
-        responseTime: `${responseTime}ms`
+        message: "Conexão com o banco de dados estabelecida com sucesso"
       });
     } else {
-      console.error("[DB STATUS] Resultado inesperado na verificação");
-      return res.status(500).json({
-        status: "error",
-        message: "Resultado inesperado na verificação do banco de dados"
+      console.error(`[DB STATUS] Banco de dados offline: ${dbHealth.error}`);
+      return res.status(503).json({
+        status: "offline",
+        message: "Não foi possível conectar ao banco de dados",
+        error: dbHealth.error
       });
     }
   } catch (error) {

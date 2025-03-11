@@ -1,154 +1,157 @@
+import { checkDatabaseHealth } from "../../lib/db";
 import config from "../../lib/config";
 import { sendErrorAlert, sendWarningAlert, sendInfoAlert } from "../../lib/alerts";
 import { allowCors } from "../../lib/cors";
 
 /**
- * Endpoint para verificar a saúde do sistema
- * Monitora componentes críticos e envia alertas
+ * Endpoint de verificação de saúde do sistema
+ * Verifica as conexões de banco de dados e outras dependências
+ * Gera alertas quando necessário
  * 
- * @param {Object} req - Requisição HTTP
- * @param {Object} res - Resposta HTTP
+ * Este endpoint não tem restrições de CORS para permitir monitoramento externo.
  */
 async function handler(req, res) {
-  // Verificamos se o método é GET
+  // Verificar se é pedido de geração de alerta de teste (para validar configuração)
+  const testAlert = req.query.test_alert;
+  if (testAlert && req.method === 'GET') {
+    try {
+      // Apenas gerar teste se houver autorização ou estiver em desenvolvimento
+      const monitorSecret = process.env.MONITOR_SECRET;
+      const isAuthorized = monitorSecret && req.headers.authorization === `Bearer ${monitorSecret}`;
+      const isLocalRequest = req.headers.host && 
+        (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'));
+        
+      if (isAuthorized || isLocalRequest || !config.system.isProduction) {
+        if (testAlert === 'error') {
+          await sendErrorAlert('Teste de alerta de erro', { source: 'health-check', test: true });
+        } else if (testAlert === 'warning') {
+          await sendWarningAlert('Teste de alerta de aviso', { source: 'health-check', test: true });
+        } else {
+          await sendInfoAlert('Teste de alerta informativo', { source: 'health-check', test: true });
+        }
+        
+        return res.status(200).json({ 
+          status: 'ok',
+          message: `Alerta de teste '${testAlert}' enviado com sucesso`
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erro ao enviar alerta de teste:', error);
+      return res.status(500).json({ 
+        status: 'error',
+        message: 'Não foi possível enviar alerta de teste',
+        error: error.message 
+      });
+    }
+  }
+  
+  // Apenas permitir GET para verificação de saúde
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Método não permitido" });
   }
 
   try {
-    // Obter componentes para verificar do config ou da query
-    const components = req.query.components 
-      ? req.query.components.split(',') 
-      : ['api', 'system'];
+    // Verificar saúde do banco de dados
+    const dbHealth = await checkDatabaseHealth();
       
-    // Resultados das verificações
-    const results = {};
-    const alerts = [];
-    let systemStatus = "healthy";
-    
-    // === 1. Verificar API ===
-    if (components.includes('api')) {
-      results.api = {
-        status: "healthy",
-        message: "API funcionando normalmente",
-        timestamp: new Date().toISOString()
-      };
-    }
-    
-    // === 2. Verificar configuração do sistema ===
-    if (components.includes('system')) {
-      const missingConfigs = [];
-      
-      // Verificar se as configurações críticas estão presentes
-      if (!config.database.host) missingConfigs.push('DB_HOST');
-      if (!config.database.user) missingConfigs.push('DB_USER');
-      if (!config.database.name) missingConfigs.push('DB_NAME');
-      if (!config.auth.jwtSecret) missingConfigs.push('JWT_SECRET');
-      
-      if (missingConfigs.length > 0) {
-        results.system = {
-          status: "warning",
-          message: `Configurações ausentes: ${missingConfigs.join(', ')}`,
-          missingConfigs
-        };
-        systemStatus = "warning";
-        alerts.push({
-          type: "warning",
-          message: `Configurações do sistema ausentes: ${missingConfigs.join(', ')}`
-        });
-      } else {
-        results.system = {
-          status: "healthy",
-          message: "Configuração do sistema está completa"
-        };
-      }
-    }
-    
-    // === 3. Verificar status de alertas ===
-    if (components.includes('alerts')) {
-      try {
-        // Enviar alerta de teste se solicitado
-        if (req.query.sendTestAlert === 'true') {
-          await sendInfoAlert('Alerta de teste do sistema de monitoramento');
-          results.alerts = {
-            status: "healthy",
-            message: "Sistema de alertas funcionando (alerta de teste enviado)",
-            testAlertSent: true
-          };
-        } else {
-          results.alerts = {
-            status: "healthy",
-            message: "Sistema de alertas está configurado"
-          };
-        }
-      } catch (error) {
-        results.alerts = {
-          status: "warning",
-          message: "Sistema de alertas com erro: " + error.message
-        };
-        systemStatus = "warning";
-      }
-    }
-    
-    // === 4. Verificar parâmetros gerais da requisição ===
-    if (components.includes('request')) {
-      results.request = {
-        method: req.method,
-        url: req.url,
-        headers: {
-          host: req.headers.host,
-          userAgent: req.headers['user-agent'],
-          acceptLanguage: req.headers['accept-language']
-        },
-        ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress
-      };
-    }
-    
-    // === 5. Verificar informações de ambiente ===
-    if (components.includes('environment')) {
-      results.environment = {
-        nodeEnv: process.env.NODE_ENV,
-        nodeVersion: process.version,
-        memoryUsage: process.memoryUsage(),
-        uptime: process.uptime(),
-        hostname: process.env.HOSTNAME || 'unknown'
-      };
-    }
-    
-    // Agregar resultado final
-    const healthResult = {
-      status: systemStatus,
+    // Status básico - seguro para exposição pública
+    const basicStatus = {
+      status: dbHealth.connected ? 'ok' : 'error',
       timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || '1.0.0',
-      results
+      uptime: Math.floor(process.uptime()),
+      environment: config.system.nodeEnv
     };
     
-    // Se há alertas, incluí-los na resposta
-    if (alerts.length > 0) {
-      healthResult.alerts = alerts;
+    // Verificar alertas automáticos
+    // Flag para evitar envio duplicado de alertas
+    const shouldAlert = req.query.alert !== 'false';
+      
+    // Verificar problema de saúde e gerar alerta se necessário
+    if (shouldAlert && !dbHealth.connected) {
+      await sendErrorAlert('Problema de conexão com o banco de dados', {
+        source: 'health-check',
+        error: dbHealth.error,
+        code: dbHealth.code
+      });
     }
     
-    // Decidir status HTTP com base no status do sistema
-    const httpStatus = systemStatus === "healthy" ? 200 : 
-                      systemStatus === "warning" ? 200 : 500;
+    // Verificar se JWT está configurado corretamente
+    const isJwtConfigured = !!config.auth.jwtSecret && 
+      config.auth.jwtSecret !== 'dev_jwt_secret_unsafe';
+      
+    if (shouldAlert && config.system.isProduction && !isJwtConfigured) {
+      await sendWarningAlert('JWT_SECRET não configurado corretamente', {
+        source: 'health-check'
+      });
+    }
     
-    return res.status(httpStatus).json(healthResult);
+    // Se o header de autorização estiver presente e corresponder ao segredo de monitoramento
+    // OU se a solicitação vier de localhost/127.0.0.1
+    const monitorSecret = process.env.MONITOR_SECRET;
+    const isAuthorized = monitorSecret && 
+      req.headers.authorization === `Bearer ${monitorSecret}`;
+    const isLocalRequest = req.headers.host && 
+      (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'));
+    
+    // Verificar se devemos mostrar informações detalhadas
+    const showDetails = 
+      (req.query.detailed === 'true' && (isAuthorized || isLocalRequest)) || 
+      (!config.system.isProduction && req.query.detailed === 'true');
+    
+    if (showDetails) {
+      // Status detalhado - apenas para monitoramento autorizado
+      const detailedStatus = {
+        ...basicStatus,
+        version: process.env.npm_package_version || 'desconhecida',
+        server: {
+          nodeVersion: process.version,
+          platform: process.platform,
+          memory: {
+            rss: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB',
+            heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + 'MB',
+            heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB'
+          }
+        },
+        database: {
+          connected: dbHealth.connected,
+          status: dbHealth.status,
+          host: config.database.host ? config.database.host.split('.')[0] + '.***.***' : 'não configurado', // Omitir parte do hostname por segurança
+          ssl: !!config.database.ssl
+        },
+        config: {
+          configValid: true,
+          corsConfigured: config.cors.allowedOrigins.length > 0,
+          jwtConfigured: isJwtConfigured,
+        }
+      };
+      
+      // Responder com código de status apropriado
+      const statusCode = dbHealth.connected ? 200 : 503;
+      return res.status(statusCode).json(detailedStatus);
+    }
+    
+    // Responder com status básico para solicitações não autorizadas
+    return res.status(dbHealth.connected ? 200 : 503).json(basicStatus);
     
   } catch (error) {
-    console.error("Erro ao verificar saúde do sistema:", error);
+    console.error('❌ Erro ao verificar saúde do sistema:', error);
     
-    // Enviar alerta de erro
+    // Tentar enviar alerta de erro
     try {
-      await sendErrorAlert(`Erro crítico no health check: ${error.message}`);
+      if (req.query.alert !== 'false') {
+        await sendErrorAlert('Erro ao verificar saúde do sistema', {
+          source: 'health-check',
+          error: error.message
+        });
+      }
     } catch (alertError) {
-      console.error("Falha ao enviar alerta:", alertError);
+      console.error('Erro ao enviar alerta:', alertError);
     }
     
     return res.status(500).json({
-      status: "error",
-      message: "Erro interno ao verificar saúde do sistema",
-      error: config.system.isDevelopment ? error.message : "Internal server error",
-      timestamp: new Date().toISOString()
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      message: 'Erro interno ao verificar saúde do sistema'
     });
   }
 }

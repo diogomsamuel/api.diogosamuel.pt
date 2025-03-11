@@ -215,8 +215,8 @@ const system = {
   configValid: validateConfig(),
 };
 
-// Exportar todas as configurações
-export default {
+// Configuração completa da aplicação
+const appConfig = {
   db: dbConfig,
   auth: authConfig,
   cors: corsConfig,
@@ -225,4 +225,7 @@ export default {
   blockchain: blockchainConfig,
   admin: adminConfig,
   system,
-}; 
+};
+
+// Exportar todas as configurações
+export default appConfig; 
