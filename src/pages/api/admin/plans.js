@@ -5,6 +5,10 @@ import { withAuth } from "../../../lib/auth";
 async function handler(req, res) {
   // Verificar se o utilizador é administrador
   if (!req.user || req.user.walletAddress !== process.env.ADMIN_WALLET) {
+    console.error('[API] Acesso não autorizado:', {
+      user: req.user ? req.user.walletAddress : 'não autenticado',
+      adminWallet: process.env.ADMIN_WALLET
+    });
     return res.status(403).json({ 
       success: false,
       error: "Acesso não autorizado",
@@ -14,13 +18,17 @@ async function handler(req, res) {
 
   let connection;
   try {
+    console.log('[API] Iniciando conexão com o banco de dados...');
     connection = await pool.getConnection();
+    console.log('[API] Conexão estabelecida com sucesso');
 
     // GET: Listar planos
     if (req.method === "GET") {
       const limit = Number(req.query.limit) || 20;
       const offset = Number(req.query.offset) || 0;
       const search = req.query.search;
+
+      console.log('[API] Parâmetros da requisição:', { limit, offset, search });
 
       // Validar parâmetros
       if (limit < 1 || limit > 100) {
@@ -67,72 +75,79 @@ async function handler(req, res) {
       query += ` GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?`;
       queryParams.push(limit, offset);
 
-      console.log('Query:', query);
-      console.log('Params:', queryParams);
+      console.log('[API] Executando query:', { query, params: queryParams });
 
-      const [plans] = await connection.execute(query, queryParams);
+      try {
+        const [plans] = await connection.execute(query, queryParams);
+        console.log('[API] Query executada com sucesso. Planos encontrados:', plans.length);
 
-      // Contar total de planos para paginação
-      let countQuery = "SELECT COUNT(*) as total FROM training_plans";
-      if (search) {
-        countQuery += ` WHERE name LIKE ? OR description LIKE ? OR short_description LIKE ?`;
-      }
-
-      const [countResult] = await connection.execute(
-        countQuery,
-        search ? Array(3).fill(`%${search}%`) : []
-      );
-
-      // Buscar variantes para cada plano
-      if (plans.length > 0) {
-        const planIds = plans.map(plan => plan.id);
-        
-        const [variants] = await connection.execute(`
-          SELECT 
-            pv.id, pv.plan_id, pv.duration, pv.price,
-            pv.training_frequency, pv.experience_level,
-            pv.is_active, COUNT(pu.id) as sales_count
-          FROM plan_variants pv
-          LEFT JOIN purchases pu ON pv.id = pu.variant_id AND pu.status = 'completed'
-          WHERE pv.plan_id IN (${planIds.map(() => '?').join(',')})
-          GROUP BY pv.id
-          ORDER BY pv.price ASC
-        `, planIds);
-
-        // Adicionar variantes a cada plano
-        for (const plan of plans) {
-          plan.variants = variants
-            .filter(v => v.plan_id === plan.id)
-            .map(v => ({
-              id: v.id,
-              duration: v.duration,
-              price: v.price,
-              training_frequency: v.training_frequency,
-              experience_level: v.experience_level,
-              is_active: Boolean(v.is_active),
-              sales_count: Number(v.sales_count),
-              name: `${v.training_frequency}x por semana - ${v.duration} dias`
-            }));
+        // Contar total de planos para paginação
+        let countQuery = "SELECT COUNT(*) as total FROM training_plans";
+        if (search) {
+          countQuery += ` WHERE name LIKE ? OR description LIKE ? OR short_description LIKE ?`;
         }
-      }
 
-      connection.release();
-      return res.status(200).json({
-        success: true,
-        plans: plans.map(plan => ({
-          ...plan,
-          variants_count: Number(plan.variants_count),
-          sales_count: Number(plan.sales_count),
-          total_revenue: Number(plan.total_revenue || 0),
-          is_active: Boolean(plan.is_active)
-        })),
-        pagination: {
-          total: Number(countResult[0].total),
-          limit: Number(limit),
-          offset: Number(offset),
-          pages: Math.ceil(Number(countResult[0].total) / limit)
+        const [countResult] = await connection.execute(
+          countQuery,
+          search ? Array(3).fill(`%${search}%`) : []
+        );
+
+        // Buscar variantes para cada plano
+        if (plans.length > 0) {
+          const planIds = plans.map(plan => plan.id);
+          
+          const [variants] = await connection.execute(`
+            SELECT 
+              pv.id, pv.plan_id, pv.duration, pv.price,
+              pv.training_frequency, pv.experience_level,
+              pv.is_active, COUNT(pu.id) as sales_count
+            FROM plan_variants pv
+            LEFT JOIN purchases pu ON pv.id = pu.variant_id AND pu.status = 'completed'
+            WHERE pv.plan_id IN (${planIds.map(() => '?').join(',')})
+            GROUP BY pv.id
+            ORDER BY pv.price ASC
+          `, planIds);
+
+          console.log('[API] Variantes encontradas:', variants.length);
+
+          // Adicionar variantes a cada plano
+          for (const plan of plans) {
+            plan.variants = variants
+              .filter(v => v.plan_id === plan.id)
+              .map(v => ({
+                id: v.id,
+                duration: v.duration,
+                price: v.price,
+                training_frequency: v.training_frequency,
+                experience_level: v.experience_level,
+                is_active: Boolean(v.is_active),
+                sales_count: Number(v.sales_count),
+                name: `${v.training_frequency}x por semana - ${v.duration} dias`
+              }));
+          }
         }
-      });
+
+        connection.release();
+        return res.status(200).json({
+          success: true,
+          plans: plans.map(plan => ({
+            ...plan,
+            variants_count: Number(plan.variants_count),
+            sales_count: Number(plan.sales_count),
+            total_revenue: Number(plan.total_revenue || 0),
+            is_active: Boolean(plan.is_active)
+          })),
+          pagination: {
+            total: Number(countResult[0].total),
+            limit: Number(limit),
+            offset: Number(offset),
+            pages: Math.ceil(Number(countResult[0].total) / limit)
+          }
+        });
+      } catch (queryError) {
+        console.error('[API] Erro ao executar query:', queryError);
+        throw queryError;
+      }
     }
 
     // POST: Criar plano
@@ -333,14 +348,22 @@ async function handler(req, res) {
 
   } catch (error) {
     console.error('[API] Erro ao processar planos:', error);
+    console.error('[API] Stack trace:', error.stack);
     
     // Libertar a conexão em caso de erro
-    if (connection) connection.release();
+    if (connection) {
+      try {
+        connection.release();
+      } catch (releaseError) {
+        console.error('[API] Erro ao libertar conexão:', releaseError);
+      }
+    }
     
     return res.status(500).json({
       success: false,
       error: "Erro ao processar operação",
-      message: "Ocorreu um erro ao processar o seu pedido"
+      message: "Ocorreu um erro ao processar o seu pedido",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 }

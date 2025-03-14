@@ -9,10 +9,17 @@ import config from "./config";
 export function withAuth(handler) {
   return async (req, res) => {
     try {
+      console.log('[AUTH] Iniciando verificação de autenticação');
+      console.log('[AUTH] Headers recebidos:', {
+        authorization: req.headers.authorization ? 'Presente' : 'Ausente',
+        cookie: req.headers.cookie ? 'Presente' : 'Ausente'
+      });
+
       // Verificar se o cabeçalho de autorização está presente
       const authHeader = req.headers.authorization;
       
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.error('[AUTH] Token não encontrado no cabeçalho de autorização');
         return res.status(401).json({
           error: "Token em falta",
           code: "missing_token",
@@ -24,6 +31,7 @@ export function withAuth(handler) {
       const token = authHeader.split(' ')[1];
       
       if (!token) {
+        console.error('[AUTH] Token vazio após extração');
         return res.status(401).json({
           error: "Token em falta",
           code: "missing_token",
@@ -33,8 +41,15 @@ export function withAuth(handler) {
       
       // Verificar o token
       try {
+        console.log('[AUTH] Verificando token JWT');
         // Verificar o token e extrair os dados do utilizador
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log('[AUTH] Token verificado com sucesso:', {
+          userId: decoded.userId,
+          walletAddress: decoded.walletAddress,
+          isAdmin: decoded.isAdmin,
+          isSuperAdmin: decoded.isSuperAdmin
+        });
         
         // Adicionar o objeto do utilizador à requisição
         req.user = decoded;
@@ -61,6 +76,7 @@ export function withAuth(handler) {
       }
     } catch (error) {
       console.error('[AUTH] Erro no middleware de autenticação:', error);
+      console.error('[AUTH] Stack trace:', error.stack);
       return res.status(500).json({
         error: "Erro de autenticação",
         code: "auth_error",
