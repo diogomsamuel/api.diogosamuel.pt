@@ -15,40 +15,35 @@ export function withAuth(handler) {
         cookie: req.headers.cookie ? 'Presente' : 'Ausente'
       });
 
-      // Verificar se o cabeçalho de autorização está presente
-      const authHeader = req.headers.authorization;
-      
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.error('[AUTH] Token não encontrado no cabeçalho de autorização');
-        return res.status(401).json({
-          error: "Token em falta",
-          code: "missing_token",
-          message: "Autenticação necessária para aceder a este recurso"
-        });
-      }
-      
-      // Extrair o token do cabeçalho
-      const token = authHeader.split(' ')[1];
-      
+      // Tentar obter o token do cookie primeiro
+      const cookies = parse(req.headers.cookie || '');
+      let token = cookies.token;
+
+      // Se não houver token no cookie, tentar obter do cabeçalho de autorização
       if (!token) {
-        console.error('[AUTH] Token vazio após extração');
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          token = authHeader.split(' ')[1];
+        }
+      }
+
+      if (!token) {
+        console.error('[AUTH] Token não encontrado em cookie ou cabeçalho de autorização');
         return res.status(401).json({
           error: "Token em falta",
           code: "missing_token",
           message: "Autenticação necessária para aceder a este recurso"
         });
       }
-      
+
       // Verificar o token
       try {
         console.log('[AUTH] Verificando token JWT');
-        // Verificar o token e extrair os dados do utilizador
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, config.auth.jwtSecret);
         console.log('[AUTH] Token verificado com sucesso:', {
-          userId: decoded.userId,
-          walletAddress: decoded.walletAddress,
-          isAdmin: decoded.isAdmin,
-          isSuperAdmin: decoded.isSuperAdmin
+          id: decoded.id,
+          username: decoded.username,
+          verified: decoded.verified
         });
         
         // Adicionar o objeto do utilizador à requisição

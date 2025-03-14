@@ -1,4 +1,4 @@
-import { connectToDatabase, checkDatabaseHealth } from "../../lib/db";
+import { checkDatabaseHealth } from "../../lib/db";
 import { allowCors } from "../../lib/cors";
 
 /**
@@ -9,57 +9,44 @@ import { allowCors } from "../../lib/cors";
  * @param {Object} res - Resposta HTTP
  */
 async function handler(req, res) {
-  // Configuração de CORS usando variáveis de ambiente
-  const origin = req.headers.origin || '';
-  const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS_REMOTE
-    ? process.env.CORS_ALLOWED_ORIGINS_REMOTE.split(",")
-    : [];
-
   // Log para depuração
-  console.log("[DB STATUS] Origin:", origin);
-  console.log("[DB STATUS] Allowed Origins from env:", allowedOrigins);
-
-  // Se a origem estiver na lista de permitidas, defina o cabeçalho CORS
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST, PUT, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, Cookie, Set-Cookie');
-  }
-
-  // Responder imediatamente a requisições OPTIONS (preflight)
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+  console.log("[DB STATUS] Iniciando verificação de status");
+  console.log("[DB STATUS] Método:", req.method);
+  console.log("[DB STATUS] Origin:", req.headers.origin);
 
   // Apenas permitir requisições GET
   if (req.method !== "GET") {
+    console.log("[DB STATUS] Método não permitido:", req.method);
     return res.status(405).json({ error: "Método não permitido" });
   }
 
-  console.log("[DB STATUS] Verificando status do banco de dados");
-  
   try {
     // Verificar saúde do banco de dados
+    console.log("[DB STATUS] Chamando checkDatabaseHealth");
     const dbHealth = await checkDatabaseHealth();
+    console.log("[DB STATUS] Resultado:", dbHealth);
     
     if (dbHealth.connected) {
-      console.log(`[DB STATUS] Banco de dados online`);
+      console.log("[DB STATUS] Banco de dados online");
       return res.status(200).json({
         success: true,
         status: "connected",
         message: "Conexão com o banco de dados estabelecida com sucesso",
-        timestamp: new Date().toISOString(),
-        stats: dbHealth.stats || { connectionLimit: 10, status: "Pool statistics not available" }
+        timestamp: dbHealth.timestamp,
+        stats: {
+          connectionLimit: process.env.DB_CONNECTION_LIMIT || 10,
+          status: "Pool statistics not available"
+        }
       });
     } else {
-      console.error(`[DB STATUS] Banco de dados offline: ${dbHealth.error}`);
+      console.error("[DB STATUS] Banco de dados offline:", dbHealth.error);
       return res.status(503).json({
         success: false,
         status: "disconnected",
         message: "Não foi possível conectar ao banco de dados",
-        timestamp: new Date().toISOString(),
-        error: dbHealth.error
+        timestamp: dbHealth.timestamp,
+        error: dbHealth.error,
+        code: dbHealth.code
       });
     }
   } catch (error) {
@@ -70,10 +57,11 @@ async function handler(req, res) {
       status: "error",
       message: "Erro ao verificar status do banco de dados",
       timestamp: new Date().toISOString(),
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
 
-// Podemos usar também o middleware allowCors que já faz isso corretamente
+// Usar o middleware allowCors que já faz isso corretamente
 export default allowCors(handler); 
