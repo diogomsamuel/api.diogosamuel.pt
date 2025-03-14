@@ -3,119 +3,68 @@ import { parse } from "cookie";
 import config from "./config";
 
 /**
- * Middleware para verificar a autenticação do usuário
- * @param {Function} handler - O manipulador da API
- * @returns {Function} O manipulador com autenticação
+ * Middleware de autenticação
+ * Verifica se o utilizador está autenticado através do token JWT
  */
 export function withAuth(handler) {
   return async (req, res) => {
     try {
-      // Verificar se a chave secreta JWT está definida
-      if (!config.auth.jwtSecret) {
-        console.error("❌ JWT_SECRET não configurado no ambiente");
-        return res.status(500).json({ 
-          error: "Erro de configuração do servidor",
-          message: "Autenticação configurada incorretamente" 
-        });
-      }
-
-      console.log("🔍 Cabeçalhos da requisição:", {
-        authorization: req.headers.authorization ? 'Presente (velado)' : 'Ausente',
-        cookie: req.headers.cookie ? 'Presente (velado)' : 'Ausente',
-        origin: req.headers.origin,
-        host: req.headers.host
-      });
-
-      // Extrai o token dos cookies ou do header Authorization
-      let token = null;
-      let tokenSource = '';
+      // Verificar se o cabeçalho de autorização está presente
+      const authHeader = req.headers.authorization;
       
-      try {
-        // Primeiro, tenta encontrar o token nos cookies
-        const cookies = req.headers.cookie ? parse(req.headers.cookie) : {};
-        token = cookies.token || cookies.adminToken || null;
-        
-        if (token) {
-          tokenSource = 'cookie';
-          console.log("✅ Token extraído do cookie");
-        }
-        
-        // Se não encontrar o token nos cookies, tenta encontrar no cabeçalho Authorization
-        if (!token && req.headers.authorization) {
-          const authHeader = req.headers.authorization;
-          if (authHeader.startsWith('Bearer ')) {
-            token = authHeader.substring(7); // Remove 'Bearer ' do início
-            tokenSource = 'authorization';
-            console.log("✅ Token extraído do cabeçalho Authorization");
-          }
-        }
-      } catch (cookieError) {
-        console.error("❌ Erro ao analisar cookies:", cookieError.message);
-        return res.status(401).json({ error: "Erro ao processar cookies de autenticação" });
-      }
-
-      // Verifica se o token está presente
-      if (!token) {
-        console.warn("⚠ Nenhum token encontrado nos cookies ou cabeçalhos.");
-        return res.status(401).json({ error: "Não autenticado" });
-      }
-
-      console.log(`🔑 Token encontrado (fonte: ${tokenSource}). Validando...`);
-
-      // Tenta verificar o token JWT com a chave secreta
-      try {
-        const decoded = jwt.verify(token, config.auth.jwtSecret);
-        
-        // Log do conteúdo decodificado (seguro)
-        console.log("✅ Token decodificado:", {
-          id: decoded.id,
-          walletAddress: decoded.walletAddress ? `${decoded.walletAddress.substring(0, 6)}...${decoded.walletAddress.substring(decoded.walletAddress.length - 4)}` : 'não presente',
-          authMethod: decoded.authMethod,
-          isAdmin: decoded.isAdmin,
-          isSuperAdmin: decoded.isSuperAdmin,
-          exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'não presente'
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          error: "Token em falta",
+          code: "missing_token",
+          message: "Autenticação necessária para aceder a este recurso"
         });
+      }
+      
+      // Extrair o token do cabeçalho
+      const token = authHeader.split(' ')[1];
+      
+      if (!token) {
+        return res.status(401).json({
+          error: "Token em falta",
+          code: "missing_token",
+          message: "Autenticação necessária para aceder a este recurso"
+        });
+      }
+      
+      // Verificar o token
+      try {
+        // Verificar o token e extrair os dados do utilizador
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // Verificação adicional do conteúdo do token
-        if (!decoded || !decoded.id) {
-          console.error("❌ Token inválido: Sem ID de usuário");
-          return res.status(401).json({ error: "Token inválido (sem ID de usuário)" });
-        }
-        
-        // Adiciona o usuário decodificado à request
+        // Adicionar o objeto do utilizador à requisição
         req.user = decoded;
         
-        // Chama o handler original com o usuário autenticado
+        // Continuar com o handler
         return handler(req, res);
-      } catch (jwtError) {
-        // Lidar com diferentes tipos de erros JWT
-        if (jwtError.name === 'TokenExpiredError') {
-          console.warn("⚠ Token expirado");
-          return res.status(401).json({ 
-            error: "Sessão expirada", 
-            code: "token_expired",
-            message: "Sua sessão expirou. Por favor, faça login novamente." 
-          });
-        } else if (jwtError.name === 'JsonWebTokenError') {
-          console.error("❌ Token inválido:", jwtError.message);
-          return res.status(401).json({ 
-            error: "Token inválido", 
-            code: "invalid_token",
-            message: "Sua autenticação é inválida. Por favor, faça login novamente." 
-          });
-        } else {
-          console.error("❌ Erro na verificação do token:", jwtError.message);
-          return res.status(401).json({ 
-            error: "Erro de autenticação", 
-            code: "auth_error" 
+      } catch (tokenError) {
+        console.error('[AUTH] Erro na validação do token:', tokenError);
+        
+        // Erros específicos de token
+        if (tokenError.name === 'TokenExpiredError') {
+          return res.status(401).json({
+            error: "Token expirado",
+            code: "expired_token",
+            message: "A sua sessão expirou. Por favor, inicie sessão novamente."
           });
         }
+        
+        return res.status(401).json({
+          error: "Token inválido",
+          code: "invalid_token",
+          message: "A sua autenticação é inválida. Por favor, inicie sessão novamente."
+        });
       }
     } catch (error) {
-      console.error("❌ Erro inesperado na autenticação:", error.message);
-      return res.status(500).json({ 
-        error: "Erro ao verificar a autenticação",
-        message: "Ocorreu um erro inesperado ao processar sua autenticação" 
+      console.error('[AUTH] Erro no middleware de autenticação:', error);
+      return res.status(500).json({
+        error: "Erro de autenticação",
+        code: "auth_error",
+        message: "Ocorreu um erro ao processar a autenticação"
       });
     }
   };

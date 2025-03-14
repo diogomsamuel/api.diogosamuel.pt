@@ -3,12 +3,12 @@ import { allowCors } from "../../../lib/cors";
 import { withAuth } from "../../../lib/auth";
 
 async function handler(req, res) {
-  // Verificar se o usuário é administrador
+  // Verificar se o utilizador é administrador
   if (!req.user || req.user.walletAddress !== process.env.ADMIN_WALLET) {
     return res.status(403).json({ 
       success: false,
       error: "Acesso não autorizado",
-      message: "Você não tem permissão para acessar este recurso"
+      message: "Não tem permissão para aceder a este recurso"
     });
   }
 
@@ -151,7 +151,7 @@ async function handler(req, res) {
       if (!name || !description || !base_price) {
         return res.status(400).json({
           success: false,
-          error: "Campos obrigatórios ausentes",
+          error: "Campos obrigatórios em falta",
           message: "Nome, descrição e preço base são obrigatórios"
         });
       }
@@ -225,7 +225,7 @@ async function handler(req, res) {
       if (!name || !description || base_price === undefined) {
         return res.status(400).json({
           success: false,
-          error: "Campos obrigatórios ausentes",
+          error: "Campos obrigatórios em falta",
           message: "Nome, descrição e preço base são obrigatórios"
         });
       }
@@ -332,15 +332,18 @@ async function handler(req, res) {
     }
 
   } catch (error) {
+    console.error('[API] Erro ao processar planos:', error);
+    
+    // Libertar a conexão em caso de erro
     if (connection) connection.release();
-    console.error("❌ Erro na operação de planos:", error);
-    return res.status(500).json({ 
+    
+    return res.status(500).json({
       success: false,
       error: "Erro ao processar operação",
-      message: process.env.NODE_ENV === 'development' ? error.message : "Ocorreu um erro ao processar sua solicitação"
+      message: "Ocorreu um erro ao processar o seu pedido"
     });
   }
 }
 
-// Proteger a rota com CORS e autenticação
+// Aplicar middleware de CORS e autenticação
 export default allowCors(withAuth(handler)); 

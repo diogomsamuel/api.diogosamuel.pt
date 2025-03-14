@@ -122,9 +122,9 @@ const corsConfig = {
       // Admin dashboard
       'https://admin.diogosamuel.pt',
       
-      // URLs de desenvolvimento local
-      'http://localhost:3000',
-      'http://localhost:3002',
+      // URLs de desenvolvimento local - REMOVIDO
+      // 'http://localhost:3000',
+      // 'http://localhost:3002',
     ]
   ),
   allowAnyOriginInDev: process.env.ALLOW_ANY_ORIGIN_IN_DEV === 'true' || false,
