@@ -40,7 +40,10 @@ async function handler(req, res) {
       const decoded = jwt.verify(token, config.auth.jwtSecret);
       
       // Verificar se é um token de admin
-      if (!decoded.isAdmin) {
+      const isAdmin = decoded.walletAddress && 
+                     decoded.walletAddress.toLowerCase() === process.env.ADMIN_WALLET?.toLowerCase();
+      
+      if (!isAdmin) {
         console.warn(`[AUTH] Tentativa de acesso admin com token não-admin: ${decoded.id}`);
         return res.status(403).json({ error: 'Permissão negada' });
       }
@@ -50,7 +53,7 @@ async function handler(req, res) {
         success: true,
         userId: decoded.id,
         isAdmin: true,
-        isSuperAdmin: decoded.isSuperAdmin || false,
+        isSuperAdmin: true,
         // Não retornar informações sensíveis
       });
       

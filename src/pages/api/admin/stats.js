@@ -24,8 +24,9 @@ async function handler(req, res) {
     });
   }
   
-  // TEMPORÁRIO: Permitir acesso ao usuário específico com ID 7
-  const isAdmin = req.user.isAdmin || req.user.id === 7 || req.user.id === "7";
+  // Verificar se o usuário é administrador por wallet
+  const isAdmin = req.user.walletAddress && 
+                  req.user.walletAddress.toLowerCase() === process.env.ADMIN_WALLET?.toLowerCase();
   
   // Verificar se o usuário é administrador
   if (!isAdmin) {
@@ -37,10 +38,8 @@ async function handler(req, res) {
     });
   }
   
-  // Super Admin tem acesso completo (wallet verificada)
-  const isSuperAdmin = req.user.isSuperAdmin || 
-                      (req.user.walletAddress && 
-                       req.user.walletAddress.toLowerCase() === process.env.ADMIN_WALLET?.toLowerCase());
+  // Super Admin tem acesso completo (é o mesmo que isAdmin neste contexto)
+  const isSuperAdmin = isAdmin;
 
   console.log('[Admin Stats] É super admin:', isSuperAdmin);
 

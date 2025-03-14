@@ -4,7 +4,7 @@ import { allowCors } from '../../../../lib/cors';
 
 const handler = async (req, res) => {
   // Verificar se o usuário é administrador
-  if (!req.user || (!req.user.isAdmin && req.user.id !== 7)) {
+  if (!req.user || req.user.walletAddress !== process.env.ADMIN_WALLET) {
     return res.status(403).json({ 
       success: false,
       error: "Acesso não autorizado",
