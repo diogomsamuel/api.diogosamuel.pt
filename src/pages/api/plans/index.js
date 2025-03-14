@@ -93,75 +93,87 @@ async function handler(req, res) {
     // Executar a query
     const [plans] = await connection.execute(query, queryParams);
     
-    // Buscar as categorias para cada plano
-    if (plans.length > 0) {
+    // Inicializar arrays vazios para evitar erros
+    let planCategories = [];
+    let planVariants = [];
+    let planFeatures = [];
+    
+    // Buscar as categorias para cada plano apenas se houver planos
+    if (plans && plans.length > 0) {
       const planIds = plans.map(plan => plan.id);
       
-      const [planCategories] = await connection.execute(`
-        SELECT pc.plan_id, c.id, c.name, c.slug
-        FROM plan_categories pc
-        JOIN categories c ON pc.category_id = c.id
-        WHERE pc.plan_id IN (${planIds.map(() => '?').join(',')})
-      `, planIds);
-      
-      // Adicionar categorias a cada plano
-      for (const plan of plans) {
-        plan.categories = planCategories
-          .filter(cat => cat.plan_id === plan.id)
-          .map(cat => ({
-            id: cat.id,
-            name: cat.name,
-            slug: cat.slug
-          }));
+      try {
+        const [categoriesResult] = await connection.execute(`
+          SELECT pc.plan_id, c.id, c.name, c.slug
+          FROM plan_categories pc
+          JOIN categories c ON pc.category_id = c.id
+          WHERE pc.plan_id IN (${planIds.map(() => '?').join(',')})
+        `, planIds);
+        planCategories = categoriesResult;
+      } catch (error) {
+        console.error("Erro ao buscar categorias:", error);
       }
       
-      // Buscar variantes para cada plano com prepared statement
-      const [planVariants] = await connection.execute(`
-        SELECT 
-          pv.id, pv.plan_id, pv.duration, pv.price,
-          pv.training_frequency, pv.experience_level,
-          pv.is_active
-        FROM plan_variants pv
-        WHERE pv.plan_id IN (${planIds.map(() => '?').join(',')}) 
-        AND pv.is_active = 1
-        ORDER BY pv.price ASC
-      `, planIds);
-      
-      // Adicionar variantes a cada plano
-      for (const plan of plans) {
-        plan.variants = planVariants
-          .filter(variant => variant.plan_id === plan.id)
-          .map(variant => ({
-            id: variant.id,
-            duration: variant.duration,
-            price: variant.price,
-            training_frequency: variant.training_frequency,
-            experience_level: variant.experience_level,
-            name: `${variant.training_frequency}x por semana - ${variant.duration} dias`
-          }));
+      try {
+        const [variantsResult] = await connection.execute(`
+          SELECT 
+            pv.id, pv.plan_id, pv.duration, pv.price,
+            pv.training_frequency, pv.experience_level,
+            pv.is_active
+          FROM plan_variants pv
+          WHERE pv.plan_id IN (${planIds.map(() => '?').join(',')}) 
+          AND pv.is_active = 1
+          ORDER BY pv.price ASC
+        `, planIds);
+        planVariants = variantsResult;
+      } catch (error) {
+        console.error("Erro ao buscar variantes:", error);
       }
       
-      // Buscar recursos para cada plano
-      const [planFeatures] = await connection.execute(`
-        SELECT pf.plan_id, pf.feature, pf.is_highlighted
-        FROM plan_features pf
-        WHERE pf.plan_id IN (${planIds.map(() => '?').join(',')})
-        ORDER BY pf.is_highlighted DESC, pf.id ASC
-      `, planIds);
-      
-      // Adicionar recursos a cada plano
-      for (const plan of plans) {
-        plan.features = planFeatures
-          .filter(feature => feature.plan_id === plan.id)
-          .map(feature => ({
-            feature: feature.feature,
-            is_highlighted: Boolean(feature.is_highlighted)
-          }));
+      try {
+        const [featuresResult] = await connection.execute(`
+          SELECT pf.plan_id, pf.title as feature, pf.is_highlighted
+          FROM plan_features pf
+          WHERE pf.plan_id IN (${planIds.map(() => '?').join(',')})
+          ORDER BY pf.is_highlighted DESC, pf.id ASC
+        `, planIds);
+        planFeatures = featuresResult;
+      } catch (error) {
+        console.error("Erro ao buscar features:", error);
       }
     }
     
+    // Adicionar categorias a cada plano
+    for (const plan of plans) {
+      plan.categories = planCategories
+        .filter(cat => cat.plan_id === plan.id)
+        .map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          slug: cat.slug
+        }));
+      
+      plan.variants = planVariants
+        .filter(variant => variant.plan_id === plan.id)
+        .map(variant => ({
+          id: variant.id,
+          duration: variant.duration,
+          price: variant.price,
+          training_frequency: variant.training_frequency,
+          experience_level: variant.experience_level,
+          name: `${variant.training_frequency}x por semana - ${variant.duration} dias`
+        }));
+      
+      plan.features = planFeatures
+        .filter(feature => feature.plan_id === plan.id)
+        .map(feature => ({
+          feature: feature.feature,
+          is_highlighted: Boolean(feature.is_highlighted)
+        }));
+    }
+    
     // Obter o total de planos para paginação com prepared statement
-    const countQuery = `
+    let countQuery = `
       SELECT COUNT(*) as total 
       FROM training_plans p
       WHERE p.is_active = 1 AND p.status = 'published'
@@ -225,10 +237,17 @@ async function handler(req, res) {
   } catch (error) {
     if (connection) connection.release();
     console.error("❌ Erro ao buscar planos:", error);
+    console.error("Stack trace:", error.stack);
     return res.status(500).json({ 
       success: false,
       error: "Erro ao buscar planos de treinamento",
-      message: process.env.NODE_ENV === 'development' ? error.message : "Ocorreu um erro ao processar sua solicitação"
+      message: process.env.NODE_ENV === 'development' ? error.message : "Ocorreu um erro ao processar sua solicitação",
+      details: process.env.NODE_ENV === 'development' ? {
+        query: query,
+        params: queryParams,
+        error: error.message,
+        stack: error.stack
+      } : undefined
     });
   }
 }
