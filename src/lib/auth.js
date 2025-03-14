@@ -19,19 +19,33 @@ export function withAuth(handler) {
         });
       }
 
-      // Extrai o token dos cookies
+      console.log("🔍 Cabeçalhos da requisição:", {
+        authorization: req.headers.authorization ? 'Presente (velado)' : 'Ausente',
+        cookie: req.headers.cookie ? 'Presente (velado)' : 'Ausente',
+        origin: req.headers.origin,
+        host: req.headers.host
+      });
+
+      // Extrai o token dos cookies ou do header Authorization
       let token = null;
+      let tokenSource = '';
       
       try {
         // Primeiro, tenta encontrar o token nos cookies
         const cookies = req.headers.cookie ? parse(req.headers.cookie) : {};
-        token = cookies.token || null;
+        token = cookies.token || cookies.adminToken || null;
+        
+        if (token) {
+          tokenSource = 'cookie';
+          console.log("✅ Token extraído do cookie");
+        }
         
         // Se não encontrar o token nos cookies, tenta encontrar no cabeçalho Authorization
         if (!token && req.headers.authorization) {
           const authHeader = req.headers.authorization;
           if (authHeader.startsWith('Bearer ')) {
             token = authHeader.substring(7); // Remove 'Bearer ' do início
+            tokenSource = 'authorization';
             console.log("✅ Token extraído do cabeçalho Authorization");
           }
         }
@@ -46,9 +60,21 @@ export function withAuth(handler) {
         return res.status(401).json({ error: "Não autenticado" });
       }
 
+      console.log(`🔑 Token encontrado (fonte: ${tokenSource}). Validando...`);
+
       // Tenta verificar o token JWT com a chave secreta
       try {
         const decoded = jwt.verify(token, config.auth.jwtSecret);
+        
+        // Log do conteúdo decodificado (seguro)
+        console.log("✅ Token decodificado:", {
+          id: decoded.id,
+          walletAddress: decoded.walletAddress ? `${decoded.walletAddress.substring(0, 6)}...${decoded.walletAddress.substring(decoded.walletAddress.length - 4)}` : 'não presente',
+          authMethod: decoded.authMethod,
+          isAdmin: decoded.isAdmin,
+          isSuperAdmin: decoded.isSuperAdmin,
+          exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'não presente'
+        });
         
         // Verificação adicional do conteúdo do token
         if (!decoded || !decoded.id) {
